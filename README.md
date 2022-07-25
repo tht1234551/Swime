@@ -1,4 +1,4 @@
-기존 프로젝트 + 리액트 + Restful 
+기존 프로젝트 + 리액트 + Restful 구현하기
 
 <img src="documents/img/logo1.png" width="300px"/>
 
