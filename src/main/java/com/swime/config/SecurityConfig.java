@@ -2,6 +2,10 @@ package com.swime.config;
 
 import com.swime.security.CustomLoginSuccessHandler;
 import com.swime.security.CustomUserDetailsService;
+import com.swime.util.CookieUtils;
+import com.swime.util.JwtAuthenticationFilter;
+import com.swime.util.JwtUtil;
+import lombok.AllArgsConstructor;
 import lombok.Setter;
 import lombok.extern.log4j.Log4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +19,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
@@ -29,12 +34,12 @@ import javax.sql.DataSource;
 @Configuration
 @EnableWebSecurity
 @Log4j
-//@AllArgsConstructor
+@AllArgsConstructor
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
-    @Setter(onMethod_ = @Autowired)
-    private DataSource dataSource;
-
+    final private DataSource dataSource;
+    final private CookieUtils cookieUtils;
+    private final JwtUtil jwtUtil;
 
     @Override
     public void configure(HttpSecurity http) throws Exception{
@@ -42,6 +47,10 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         filter.setEncoding("UTF-8");
         filter.setForceEncoding(true);
         http.addFilterBefore(filter, CsrfFilter.class);
+
+        //        app.js 에서 로그인이 필요한지 토큰이 있는지 확인하고 없으면 auth로 토큰을 발행하고 api를 요청할때마다 토큰을 실어보내고 있으면 필터로 로그인 처리
+
+        http.addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
 
         http
             .cors()
@@ -58,7 +67,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .usernameParameter("id")
                 .loginPage("/user/login")
                 .loginProcessingUrl("/user/login")
-//                .successHandler(loginSuccessHandler())
+                .successHandler(loginSuccessHandler())
         .and()
             .logout()
                 .logoutUrl("/user/logout")
@@ -97,13 +106,13 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     }
 
     @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+    public JwtAuthenticationFilter jwtAuthenticationFilter() {
+        return new JwtAuthenticationFilter(cookieUtils, dataSource);
     }
 
     @Bean
     public AuthenticationSuccessHandler loginSuccessHandler(){
-        return new CustomLoginSuccessHandler();
+        return new CustomLoginSuccessHandler(jwtUtil);
     }
 
     @Bean
@@ -117,6 +126,12 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         repo.setDataSource(dataSource);
         return repo;
     }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
